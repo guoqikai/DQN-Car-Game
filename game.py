@@ -13,16 +13,14 @@ class AutoDriveGame:
 
     target_color = (255, 255, 0)
 
-    def __init__(self, map_, passenger, traffic_signs, car, target, score_desc_rate):
+    def __init__(self, map_, car, target, score_desc_rate, max_steps=1000):
         self.map = map_
         self.view = np.array(self.map, copy=True)
-        self.passenger = passenger
-        self.traffic_signs = traffic_signs
         self.car = car
-        self.target = target
+        self.target = np.array(target)
         self.time = 0
         self.score_desc_rate = score_desc_rate
-        self.extra_score = 0
+        self.max_steps = max_steps
 
         # Make a fence
         for i in range(np.ceil(np.amax(car.shape)).astype(np.int64)):
@@ -34,6 +32,8 @@ class AutoDriveGame:
         self.map = cv2.circle(self.map, (target[1], target[0]), 7, self.target_color, 3)
 
     def step(self, action):
+        if self.time == self.max_steps:
+            return False
         self.view = np.array(self.map, copy=True, dtype=np.float64)
         self.car.step(action)
         pos = np.round(self.car.pos)
@@ -42,13 +42,13 @@ class AutoDriveGame:
         x_min, x_max = int(pos[0] - max_shape[0]//2), int(pos[0] + max_shape[0]//2+1)
         map_to_update = self.map[y_min:y_max, x_min:x_max]
         if map_to_update.shape != self.car.appearance.shape:
-            self.time = 99999999
+            self.time = float('inf')
             return False
         if np.any(np.all(map_to_update == self.target_color, axis=2) &
                              np.any(self.car.cur_img != 0, axis=2)):
             return False
         if np.any(np.all(map_to_update == 255, axis=2) & np.any(self.car.cur_img != 0, axis=2)):
-            self.time = 99999999
+            self.time = float('inf')
             return False
         self.view[y_min:y_max, x_min:x_max] = map_to_update + self.car.cur_img
 
@@ -58,14 +58,14 @@ class AutoDriveGame:
     def reset(self):
         self.car.reset()
         self.time = 0
-        self.extra_score = 0
         self.view = self.map
+        self.step([0, 0])
 
     def get_score(self):
-        return np.power(self.score_desc_rate, self.time) + self.extra_score
-
-    def get_img(self):
-        return self.view
+        d = np.linalg.norm(self.car.pos - self.target)
+        if d == 0:
+            return 1
+        return np.power(self.score_desc_rate, self.time) * (1 / d)
 
 
 class Car:
@@ -107,13 +107,11 @@ class Car:
         self.init_head = head_direction
 
     def step(self, action):
-        # rotation: constant speed:
         dx_dy = np.array([np.cos(np.deg2rad(self.head_direction)), np.sin(np.deg2rad(self.head_direction))])
         net_force = action[0] * self.horsepower * dx_dy - self.friction * self.velocity
         self.velocity += net_force
         self.pos += self.velocity
-        d_theta = self.rotation_constant * np.linalg.norm(self.velocity) * \
-                               np.tan(np.deg2rad(self.steering_angle))
+        d_theta = self.rotation_constant * np.linalg.norm(self.velocity) * np.tan(np.deg2rad(self.steering_angle))
         self.head_direction += d_theta
         self.velocity = self.rotate_p(self.velocity, (0, 0), d_theta)
         self.head_direction %= 360
@@ -162,36 +160,36 @@ class Car:
 
         self.cur_img = ndimage.rotate(self.cur_img, -self.head_direction, reshape=False, prefilter=False).astype(np.int8)
 
-
-class Passenger(ABC):
-
-    @abstractmethod
-    def step(self, map_state):
-        pass
-
-    @abstractmethod
-    def reset(self):
-        pass
-
-    @abstractmethod
-    def get_score(self):
-        pass
-
-    @abstractmethod
-    def get_img(self):
-        pass
-
-
-class TypicalPassenger(Passenger):
-
-    def step(self, map_state):
-        pass
-
-    def reset(self):
-        pass
-
-    def get_score(self):
-        pass
+#
+# class Passenger(ABC):
+#
+#     @abstractmethod
+#     def step(self, map_state):
+#         pass
+#
+#     @abstractmethod
+#     def reset(self):
+#         pass
+#
+#     @abstractmethod
+#     def get_score(self):
+#         pass
+#
+#     @abstractmethod
+#     def get_img(self):
+#         pass
+#
+#
+# class TypicalPassenger(Passenger):
+#
+#     def step(self, map_state):
+#         pass
+#
+#     def reset(self):
+#         pass
+#
+#     def get_score(self):
+#         pass
 
 
 

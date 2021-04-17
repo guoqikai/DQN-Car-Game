@@ -15,10 +15,10 @@ if __name__ == "__main__":
     map_[395:399] = 255
     map_[395:399, 340: 390] = 0
 
-    car_game = AutoDriveGame(map_, None, None, car, (500, 500), 0.999)
+    car_game = AutoDriveGame(map_, car, (500, 500), 0.999, max_steps=512)
 
     while True:
-        action = np.zeros(2)
+        action = [0, 0]
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 break
