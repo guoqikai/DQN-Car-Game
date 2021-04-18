@@ -19,23 +19,24 @@ class AutoDriveDQN:
             self.target_net.load_state_dict(self.policy_net.state_dict())
 
     def loss(self, memory, batch_size):
-        self.policy_net.train()
+        self.policy_net.eval()
         self.target_net.eval()
         state, action, reward, next_state = memory.sample_from_experience(sample_size=batch_size)
         expected = self.policy_net(state)[torch.arange(action.shape[0]), action.long()]
         target, _ = torch.max(self.target_net(next_state).detach(), axis=1)
+        self.policy_net.train()
         loss = self.loss_fn(expected.unsqueeze(1), (reward + self.gamma * target).unsqueeze(1))
         return loss
 
 
 class QNet(nn.Module):
-    def __init__(self, conv_layer_channels, linear_layer_sizes, batch_norm=True):
+    def __init__(self, conv_layer_sizes, linear_layer_sizes, batch_norm=True):
         super().__init__()
 
         cnn_layers = []
-        for i in range(1, len(conv_layer_channels)):
-            cnn_layers.append(nn.Conv2d(conv_layer_channels[i - 1], conv_layer_channels[i], 3, padding=1))
-            cnn_layers.append(nn.MaxPool2d(4))
+        for i in range(len(conv_layer_sizes)):
+            in_c, out_c, kernel, stride = conv_layer_sizes[i] 
+            cnn_layers.append(nn.Conv2d(in_c, out_c, kernel, stride=stride))
             if batch_norm:
                 cnn_layers.append(nn.BatchNorm2d(conv_layer_channels[i]))
             cnn_layers.append(nn.ReLU())
@@ -43,10 +44,8 @@ class QNet(nn.Module):
         layers = []
         for i in range(1, len(linear_layer_sizes)):
             layers.append(nn.Linear(linear_layer_sizes[i - 1], linear_layer_sizes[i]))
-            if batch_norm:
-                layers.append(nn.BatchNorm1d(linear_layer_sizes[i]))
             if i < len(linear_layer_sizes) - 1:
-                layers.append(nn.Tanh())
+                layers.append(nn.ReLU())
 
         self.cnn = nn.Sequential(*cnn_layers)
         self.dnn = nn.Sequential(*layers)
@@ -54,10 +53,10 @@ class QNet(nn.Module):
     """
     inputs is batch_size * img_per_state * C * H * W
     """
-    def forward(self, inputs):
-        if len(inputs.shape) == 4:
+    def forward(self, states):
+        if len(states.shape) == 4:
             inputs = inputs.unsqueeze(0)
-        B, _, H, W, C = inputs.shape
-        return self.dnn(self.cnn(inputs.permute(0, 1, 4, 2, 3).view(-1, C, H, W)).view(B, -1))
+        B, _, C, H, W = states.shape
+        return self.dnn(self.cnn(states.view(-1, C, H, W)).view(B, -1))
 
 

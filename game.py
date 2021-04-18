@@ -13,14 +13,16 @@ class AutoDriveGame:
 
     target_color = (255, 255, 0)
 
-    def __init__(self, map_, car, target, score_desc_rate, max_steps=1000):
+    def __init__(self, map_, car, target, max_steps=1000):
         self.map = map_
         self.view = np.array(self.map, copy=True)
         self.car = car
         self.target = np.array(target)
-        self.time = 0
-        self.score_desc_rate = score_desc_rate
+        self.is_alive = True
         self.max_steps = max_steps
+        self.time = 0
+        self.max_distant = np.linalg.norm([map_.shape[0], map_.shape[1]])
+        self.reach_taregt = False
 
         # Make a fence
         for i in range(np.ceil(np.amax(car.shape)).astype(np.int64)):
@@ -42,30 +44,33 @@ class AutoDriveGame:
         x_min, x_max = int(pos[0] - max_shape[0]//2), int(pos[0] + max_shape[0]//2+1)
         map_to_update = self.map[y_min:y_max, x_min:x_max]
         if map_to_update.shape != self.car.appearance.shape:
-            self.time = float('inf')
+            self.is_alive = False
             return False
         if np.any(np.all(map_to_update == self.target_color, axis=2) &
                              np.any(self.car.cur_img != 0, axis=2)):
+            self.reach_taregt = True
             return False
         if np.any(np.all(map_to_update == 255, axis=2) & np.any(self.car.cur_img != 0, axis=2)):
-            self.time = float('inf')
+            self.is_alive = False
             return False
         self.view[y_min:y_max, x_min:x_max] = map_to_update + self.car.cur_img
-
         self.time += 1
         return True
 
     def reset(self):
         self.car.reset()
+        self.is_alive = True
+        self.reach_taregt = False
         self.time = 0
         self.view = self.map
         self.step([0, 0])
 
     def get_score(self):
-        d = np.linalg.norm(self.car.pos - self.target)
-        if d == 0:
+        if self.reach_taregt:
             return 1
-        return np.power(self.score_desc_rate, self.time) * (1 / d)
+        if not self.is_alive:
+            return -2 
+        return  - np.linalg.norm(self.car.pos - self.target) / self.max_distant
 
 
 class Car:
