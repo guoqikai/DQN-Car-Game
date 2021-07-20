@@ -23,22 +23,20 @@ class AutoDriveDQN:
         self.target_net.eval()
         state, action, reward, next_state = memory.sample_from_experience(sample_size=batch_size)
         expected = self.policy_net(state)[torch.arange(action.shape[0]), action.long()]
-        target, _ = torch.max(self.target_net(next_state).detach(), axis=1)
+        target, _ = torch.max(self.target_net(next_state).detach(), dim=1)
         self.policy_net.train()
         loss = self.loss_fn(expected.unsqueeze(1), (reward + self.gamma * target).unsqueeze(1))
         return loss
 
 
 class QNet(nn.Module):
-    def __init__(self, conv_layer_sizes, linear_layer_sizes, batch_norm=True):
+    def __init__(self, conv_layer_sizes, linear_layer_sizes):
         super().__init__()
 
         cnn_layers = []
         for i in range(len(conv_layer_sizes)):
             in_c, out_c, kernel, stride = conv_layer_sizes[i] 
             cnn_layers.append(nn.Conv2d(in_c, out_c, kernel, stride=stride))
-            if batch_norm:
-                cnn_layers.append(nn.BatchNorm2d(conv_layer_channels[i]))
             cnn_layers.append(nn.ReLU())
 
         layers = []
@@ -54,9 +52,9 @@ class QNet(nn.Module):
     inputs is batch_size * img_per_state * C * H * W
     """
     def forward(self, states):
-        if len(states.shape) == 4:
-            inputs = inputs.unsqueeze(0)
-        B, _, C, H, W = states.shape
-        return self.dnn(self.cnn(states.view(-1, C, H, W)).view(B, -1))
+        if len(states.shape) == 5:
+            states = torch.sum(states, dim=2)
+        B, C, H, W = states.shape
+        return self.dnn(self.cnn(states).view(B, -1))
 
 
