@@ -1,6 +1,7 @@
 # Car Game Hack using Deep Q Network
 playing a self-made car game using deep Q network 
 ## About the Game
+![](./game_preview.png)
 The goal of the game is to drive the car to the target(yellow circle); The player will fail if the car hits a wall or the car failed to reach the target within a certain time. There are four actions: accelerate, decelerate/reverse, steering right, and steering left.  
 The gaming is written using purely numpy and opencv, which means that rendering a frame is basically calculating a matrix base on the user's input and internal state hence it's freely efficient thanks to SIMD optimizations. You can play the game by execute `python3 ./run_game.py`(You need to have pygame installed to play the game. You can use arrow keys to drive the car.)
 
